@@ -1,0 +1,17 @@
+node_modules/
+*.log
+coverage/
+.nyc_output/
+*.vsix
+out/
+dist/
+.env
+.env.*
+!.env.example
+.npmrc
+*.pem
+*.key
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/launch.json

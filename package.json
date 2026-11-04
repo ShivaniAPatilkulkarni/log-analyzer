@@ -1,0 +1,18 @@
+{
+  "name": "log-analyzer",
+  "displayName": "Log Analyzer",
+  "description": "A minimal extension with a command to analyze the current log.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "log-analyzer.analyzeLog",
+        "title": "Log Analyzer: Analyze Current Log"
+      }
+    ]
+  }
+}
