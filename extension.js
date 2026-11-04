@@ -1,6 +1,6 @@
 const vscode = require('vscode');
 const { analyzeLog } = require('./src/analyzer/logAnalyzer');
-const { detectRootCause } = require('./src/analyzer/rootCauseRules');
+const { detectRootCause, buildAnalysisResult } = require('./src/analyzer/rootCauseRules');
 
 function activate(context) {
   const outputChannel = vscode.window.createOutputChannel('Log Analyzer');
@@ -18,18 +18,32 @@ function activate(context) {
       const text = document.getText();
       const matches = analyzeLog(text);
       const rootCause = detectRootCause(matches);
+      const analysis = buildAnalysisResult(matches, rootCause);
 
       outputChannel.clear();
-      if (rootCause) {
-        outputChannel.appendLine(`Root cause (rule-based): ${rootCause.category}`);
-        outputChannel.appendLine(rootCause.summary);
-        outputChannel.appendLine(`Evidence - Line ${rootCause.lineNumber}: ${rootCause.evidence}`);
-        outputChannel.appendLine('Suggested checks:');
-        for (const check of rootCause.suggestedChecks) {
-          outputChannel.appendLine(`- ${check}`);
-        }
-        outputChannel.appendLine('');
+      outputChannel.appendLine(`STATUS: ${analysis.status.toUpperCase()}`);
+      outputChannel.appendLine('');
+      outputChannel.appendLine('ROOT CAUSE:');
+      outputChannel.appendLine(analysis.rootCause);
+      outputChannel.appendLine('');
+      outputChannel.appendLine('CATEGORY:');
+      outputChannel.appendLine(analysis.category);
+      outputChannel.appendLine('');
+      outputChannel.appendLine('EVIDENCE:');
+      outputChannel.appendLine(analysis.lineNumber === null
+        ? 'None.' : `Line ${analysis.lineNumber}: ${analysis.evidence}`);
+      outputChannel.appendLine('');
+      outputChannel.appendLine('SUGGESTED CHECKS:');
+      if (analysis.suggestedChecks.length === 0) {
+        outputChannel.appendLine('None.');
       }
+      for (const check of analysis.suggestedChecks) {
+        outputChannel.appendLine(`- ${check}`);
+      }
+      outputChannel.appendLine('');
+      outputChannel.appendLine('CONFIDENCE:');
+      outputChannel.appendLine(analysis.confidence.toFixed(2));
+      outputChannel.appendLine('');
       if (matches.length === 0) {
         outputChannel.appendLine('No obvious errors found.');
       } else {

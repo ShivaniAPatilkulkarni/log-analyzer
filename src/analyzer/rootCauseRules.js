@@ -107,4 +107,29 @@ function detectRootCause(results) {
   return rootCause;
 }
 
-module.exports = { detectRootCause };
+function buildAnalysisResult(results, rootCause) {
+  const primaryResult = results.find(result =>
+    result.severity === 'critical' || result.severity === 'error'
+  ) || results[0];
+  const hasErrors = Boolean(primaryResult &&
+    (primaryResult.severity === 'critical' || primaryResult.severity === 'error'));
+  const matchingRule = rootCause && rules.find(rule => rule.category === rootCause.category);
+  const isSpecific = Boolean(matchingRule && matchingRule.patterns.some(pattern =>
+    scoring.technicalPatterns.includes(pattern) &&
+    rootCause.evidence.toLowerCase().includes(pattern.toLowerCase())
+  ));
+
+  return {
+    status: rootCause || hasErrors ? 'failed' : primaryResult ? 'warning' : 'unknown',
+    rootCause: rootCause ? rootCause.summary : primaryResult
+      ? `Suspicious ${hasErrors ? 'errors' : 'warnings'} found; no known root cause identified.`
+      : 'No obvious errors found.',
+    category: rootCause ? rootCause.category : 'unknown',
+    evidence: rootCause ? rootCause.evidence : primaryResult ? primaryResult.text : null,
+    lineNumber: rootCause ? rootCause.lineNumber : primaryResult ? primaryResult.lineNumber : null,
+    suggestedChecks: rootCause ? [...rootCause.suggestedChecks] : [],
+    confidence: rootCause ? isSpecific ? 0.95 : 0.75 : primaryResult ? 0.40 : 0.10
+  };
+}
+
+module.exports = { detectRootCause, buildAnalysisResult };
