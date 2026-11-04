@@ -37,8 +37,25 @@ const rules = [
   }
 ];
 
+const scoring = {
+  technicalScore: 100,
+  generalScore: 50,
+  downstreamPenalty: 25,
+  technicalPatterns: [
+    'connection refused', 'SQLTransientConnectionException',
+    'authentication failed', 'invalid credentials', 'TimeoutException',
+    'OutOfMemoryError', 'out of memory', 'permission denied',
+    'SQLSTATE 23505', 'ORA-00001'
+  ],
+  downstreamPatterns: [
+    'job failed', 'task failed', 'stage failed', 'build failed',
+    'script returned exit code', 'finished: failure'
+  ]
+};
+
 function detectRootCause(results) {
   let rootCause = null;
+  let bestScore = -Infinity;
 
   for (const result of results) {
     const contextBefore = result.contextBefore || [];
@@ -55,17 +72,34 @@ function detectRootCause(results) {
 
     for (const evidenceLine of evidenceLines) {
       const lowerCaseText = evidenceLine.text.toLowerCase();
-      const rule = rules.find(candidate =>
-        candidate.patterns.some(pattern => lowerCaseText.includes(pattern.toLowerCase()))
-      );
-      if (rule && (!rootCause || evidenceLine.lineNumber < rootCause.lineNumber)) {
-        rootCause = {
-          category: rule.category,
-          summary: rule.summary,
-          evidence: evidenceLine.text,
-          lineNumber: evidenceLine.lineNumber,
-          suggestedChecks: [...rule.suggestedChecks]
-        };
+      const downstreamPenalty = scoring.downstreamPatterns.some(pattern =>
+        lowerCaseText.includes(pattern)
+      ) ? scoring.downstreamPenalty : 0;
+
+      for (const rule of rules) {
+        const matchingPatterns = rule.patterns.filter(pattern =>
+          lowerCaseText.includes(pattern.toLowerCase())
+        );
+        if (matchingPatterns.length === 0) {
+          continue;
+        }
+
+        const hasTechnicalPattern = matchingPatterns.some(pattern =>
+          scoring.technicalPatterns.includes(pattern)
+        );
+        const score = (hasTechnicalPattern ? scoring.technicalScore : scoring.generalScore)
+          - downstreamPenalty;
+        if (score > bestScore ||
+            (score === bestScore && evidenceLine.lineNumber < rootCause.lineNumber)) {
+          bestScore = score;
+          rootCause = {
+            category: rule.category,
+            summary: rule.summary,
+            evidence: evidenceLine.text,
+            lineNumber: evidenceLine.lineNumber,
+            suggestedChecks: [...rule.suggestedChecks]
+          };
+        }
       }
     }
   }

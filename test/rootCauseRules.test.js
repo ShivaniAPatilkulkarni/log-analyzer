@@ -58,3 +58,55 @@ test('uses declared rule order when multiple categories match the same line', ()
   assert.equal(detectRootCause(analyzeLog('ERROR timeout connection refused')).category,
     'Database connection failure');
 });
+
+const rankingCases = [
+  ['job failed', 'connection refused', 'Database connection failure'],
+  ['task failed', 'authentication failed', 'Authentication failure'],
+  ['build failed', 'TimeoutException', 'Timeout']
+];
+
+for (const [downstream, technical, category] of rankingCases) {
+  test(`${technical} beats ${downstream}`, () => {
+    const result = detectRootCause(analyzeLog(`ERROR ${downstream}\nERROR ${technical}`));
+    assert.equal(result.category, category);
+    assert.equal(result.lineNumber, 2);
+  });
+}
+
+test('a later technical cause outranks an earlier general cause', () => {
+  const result = detectRootCause(analyzeLog('ERROR timeout\nERROR connection refused'));
+  assert.equal(result.category, 'Database connection failure');
+  assert.equal(result.lineNumber, 2);
+  assert.equal(Object.hasOwn(result, 'score'), false);
+});
+
+test('earlier line wins equal technical scores despite severity sorting', () => {
+  const result = detectRootCause(analyzeLog('ERROR permission denied\nFATAL OutOfMemoryError'));
+  assert.equal(result.category, 'Permission failure');
+  assert.equal(result.lineNumber, 1);
+});
+
+test('earlier line wins equal general scores', () => {
+  const result = detectRootCause(analyzeLog('ERROR timeout\nERROR could not connect'));
+  assert.equal(result.category, 'Timeout');
+  assert.equal(result.lineNumber, 1);
+});
+
+test('ranks competing categories on the same line', () => {
+  const result = detectRootCause(analyzeLog('ERROR could not connect: TimeoutException'));
+  assert.equal(result.category, 'Timeout');
+});
+
+for (const downstream of [
+  'job failed', 'task failed', 'stage failed', 'build failed',
+  'script returned exit code', 'finished: failure'
+]) {
+  test(`deprioritizes evidence containing ${downstream}`, () => {
+    const result = detectRootCause(analyzeLog(
+      `ERROR ${downstream.toUpperCase()}: connection refused\nERROR permission denied`
+    ));
+    assert.equal(result.category, 'Permission failure');
+    assert.equal(result.lineNumber, 2);
+    assert.equal(detectRootCause(analyzeLog(`ERROR ${downstream}`)), null);
+  });
+}
