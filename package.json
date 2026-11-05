@@ -12,6 +12,10 @@
       {
         "command": "log-analyzer.analyzeLog",
         "title": "Log Analyzer: Analyze Current Log"
+      },
+      {
+        "command": "log-analyzer.analyzeSelection",
+        "title": "Log Analyzer: Analyze Selection"
       }
     ]
   }
