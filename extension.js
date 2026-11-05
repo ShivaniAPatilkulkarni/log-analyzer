@@ -1,4 +1,5 @@
 const vscode = require('vscode');
+const path = require('node:path');
 const { analyzeLog } = require('./src/analyzer/logAnalyzer');
 const { detectRootCause, buildAnalysisResult } = require('./src/analyzer/rootCauseRules');
 
@@ -6,7 +7,7 @@ function activate(context) {
   const outputChannel = vscode.window.createOutputChannel('Log Analyzer');
   context.subscriptions.push(outputChannel);
 
-  function analyzeActiveEditor(selectionOnly) {
+  async function analyzeActiveEditor(selectionOnly) {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
       vscode.window.showErrorMessage('No active file is open.');
@@ -18,6 +19,17 @@ function activate(context) {
     if (selectionOnly && selection.isEmpty) {
       vscode.window.showErrorMessage('Select log lines to analyze first.');
       return;
+    }
+    const extension = path.extname(document.fileName).toLowerCase();
+    if (!['.log', '.txt', '.out'].includes(extension)) {
+      const choice = await vscode.window.showWarningMessage(
+        'This file does not look like a log file. Analyze anyway?',
+        'Analyze Anyway',
+        'Cancel'
+      );
+      if (choice !== 'Analyze Anyway') {
+        return;
+      }
     }
     const text = selectionOnly ? document.getText(selection) : document.getText();
     const matches = analyzeLog(text);
