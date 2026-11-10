@@ -182,3 +182,31 @@ test('empty selection in .js is rejected before file-type warning', async () => 
   assert.deepEqual(host.channelCalls, []);
   assert.deepEqual(host.output, ['Previous output']);
 });
+
+
+for (const id of ['log-analyzer.analyzeLog', 'log-analyzer.analyzeSelection']) {
+  test(`${id} waits for confirmation before reading or updating output`, async () => {
+    let resolveChoice;
+    const pendingChoice = new Promise(resolve => { resolveChoice = resolve; });
+    const selection = { isEmpty: false };
+    let reads = 0;
+    const host = createHost({ selection, document: {
+      fileName: 'sample.js',
+      getText(...args) {
+        reads++;
+        assert.deepEqual(args, id === 'log-analyzer.analyzeSelection' ? [selection] : []);
+        return 'ERROR connection refused';
+      }
+    } }, {}, pendingChoice);
+    host.output.push('Previous output');
+    const runningCommand = host.commands.get(id)();
+    assert.equal(host.warnings.length, 1);
+    assert.equal(reads, 0);
+    assert.deepEqual(host.channelCalls, []);
+    assert.deepEqual(host.output, ['Previous output']);
+    resolveChoice('Analyze Anyway');
+    await runningCommand;
+    assert.equal(reads, 1);
+    assert.ok(host.output.includes('Database connection failure'));
+  });
+}

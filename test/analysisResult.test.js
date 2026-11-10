@@ -55,3 +55,38 @@ test('recognizes case-insensitive specificity in captured context', () => {
   assert.equal(result.confidence, 0.95);
   assert.equal(result.lineNumber, 2);
 });
+
+test('errors take precedence over warnings in the structured status and fallback evidence', () => {
+  const matches = analyzeLog('WARN first\nERROR unclassified problem');
+  const result = buildAnalysisResult(matches, detectRootCause(matches));
+  assert.equal(result.status, 'failed');
+  assert.equal(result.confidence, 0.40);
+  assert.equal(result.evidence, 'ERROR unclassified problem');
+  assert.equal(result.lineNumber, 2);
+});
+
+test('a critical result without a known cause still has failed status', () => {
+  const matches = analyzeLog('FATAL unspecified problem');
+  const result = buildAnalysisResult(matches, detectRootCause(matches));
+  assert.equal(result.status, 'failed');
+  assert.equal(result.category, 'unknown');
+  assert.equal(result.confidence, 0.40);
+});
+
+test('structured confidence is finite, bounded, and deterministic across mixed inputs', () => {
+  for (const text of [
+    '', 'INFO healthy', 'WARN check this', 'ERROR unknown',
+    'ERROR could not connect', 'ERROR connection refused',
+    'ERROR job failed: connection refused\nERROR permission denied',
+    'ERROR timeout\nFATAL OutOfMemoryError', 'ERROR SQLSTATE 23505'
+  ]) {
+    const matches = analyzeLog(text);
+    const rootCause = detectRootCause(matches);
+    const first = buildAnalysisResult(matches, rootCause);
+    const second = buildAnalysisResult(matches, rootCause);
+    assert.deepEqual(first, second);
+    assert.ok(Number.isFinite(first.confidence));
+    assert.ok(first.confidence >= 0 && first.confidence <= 1);
+    assert.equal(Object.hasOwn(first, 'score'), false);
+  }
+});
